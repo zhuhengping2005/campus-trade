@@ -1,0 +1,214 @@
+const API_BASE = 'http://localhost:8080/api';
+let adminToken = localStorage.getItem('adminToken');
+let adminInfo = JSON.parse(localStorage.getItem('adminInfo') || 'null');
+let currentPendingPage = 1;
+let currentProductsPage = 1;
+let currentUsersPage = 1;
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (adminToken) { showAdminPage(); loadDashboard(); }
+    else { showLoginPage(); }
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+});
+
+function showLoginPage() {
+    document.getElementById('loginPage').classList.remove('hidden');
+    document.getElementById('adminPage').classList.add('hidden');
+}
+
+function showAdminPage() {
+    document.getElementById('loginPage').classList.add('hidden');
+    document.getElementById('adminPage').classList.remove('hidden');
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const form = e.target;
+    try {
+        const res = await fetch(API_BASE + '/admin/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: form.username.value, password: form.password.value})
+        });
+        const data = await res.json();
+        if (data.success) {
+            adminToken = data.data.token;
+            adminInfo = data.data;
+            localStorage.setItem('adminToken', adminToken);
+            localStorage.setItem('adminInfo', JSON.stringify(adminInfo));
+            showAdminPage(); loadDashboard();
+        } else { alert(data.message || 'login failed'); }
+    } catch (err) { alert('network error'); }
+}
+
+function logout() {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminInfo');
+    adminToken = null; adminInfo = null; showLoginPage();
+}
+
+function showModule(module) {
+    document.querySelectorAll('.module').forEach(function(m){m.classList.add('hidden');});
+    document.querySelectorAll('.sidebar nav a').forEach(function(a){a.classList.remove('active');});
+    event.target.classList.add('active');
+    if (module === 'dashboard') { document.getElementById('moduleDashboard').classList.remove('hidden'); loadDashboard(); }
+    else if (module === 'pending') { document.getElementById('modulePending').classList.remove('hidden'); loadPendingProducts(1); }
+    else if (module === 'products') { document.getElementById('moduleProducts').classList.remove('hidden'); loadAdminProducts(1); }
+    else if (module === 'users') { document.getElementById('moduleUsers').classList.remove('hidden'); loadUsers(1); }
+}
+
+async function loadDashboard() {
+    try {
+        const res = await fetch(API_BASE + '/admin/statistics');
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('statToday').textContent = 'Y' + (data.data.todayAmount||0).toFixed(2);
+            document.getElementById('statWeek').textContent = 'Y' + (data.data.weekAmount||0).toFixed(2);
+            document.getElementById('statMonth').textContent = 'Y' + (data.data.monthAmount||0).toFixed(2);
+            document.getElementById('statTotal').textContent = 'Y' + (data.data.totalAmount||0).toFixed(2);
+            document.getElementById('statPending').textContent = data.data.pendingCount||0;
+            document.getElementById('statUsers').textContent = data.data.totalUsers||0;
+            document.getElementById('statProducts').textContent = data.data.totalProducts||0;
+            document.getElementById('statOrders').textContent = data.data.totalOrders||0;
+        }
+    } catch(err) {console.error(err);}
+}
+
+async function loadPendingProducts(page) {
+    currentPendingPage = page;
+    try {
+        const res = await fetch(API_BASE + '/admin/products/pending?pageNum=' + page + '&pageSize=10');
+        const data = await res.json();
+        if (data.success) { renderPendingList(data.data.records); renderPagination('pendingPagination', data.data.pages||1, page, function(p){loadPendingProducts(p);}); }
+    } catch(err) {console.error(err);}
+}
+
+function renderPendingList(products) {
+    var c = document.getElementById('pendingList');
+    if (!products||!products.length) { c.innerHTML='<p style=padding:40px;text-align:center;color:#999;>no data</p>'; return; }
+    var h='';
+    for (var i=0;i<products.length;i++) { var p=products[i];
+        h+='<div class=product-card><h4>'+esc(p.title||'')+' <span class=status-badge status-pending>pending</span></h4>';
+        h+='<p>SID:'+p.sellerId+' | stock:'+p.stock+' | Y'+p.price+'</p>';
+        h+='<p>'+esc(p.description||'')+'</p>';
+        h+='<div class=action-buttons><button class=btn-approve onclick=doAudit('+p.id+',1)>pass</button>';
+        h+='<button class=btn-reject onclick=doAudit('+p.id+',-1)>reject</button></div></div>';
+    }
+    c.innerHTML=h;
+}
+
+async function doAudit(id, status) {
+    try {
+        var res = await fetch(API_BASE+'/admin/product/audit',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},body:JSON.stringify({productId:id,status:status})});
+        var data = await res.json();
+        if(data.success){ alert(status===1?'pass':'reject'); loadPendingProducts(currentPendingPage); }
+        else { alert(data.message||'failed'); }
+    } catch(err){console.error(err);}
+}
+
+async function loadAdminProducts(page) {
+    currentProductsPage = page;
+    var sel = document.getElementById('filterStatus');
+    var st = sel ? sel.value : '';
+    var url = API_BASE + '/admin/products?pageNum=' + page + '&pageSize=10';
+    if (st) url += '&status=' + st;
+    try {
+        var res = await fetch(url);
+        var data = await res.json();
+        if (data.success) { renderProductsList(data.data.records); renderPagination('productsPagination', data.data.pages||1, page, function(p){loadAdminProducts(p);}); }
+    } catch(err){console.error(err);}
+}
+
+function renderProductsList(products) {
+    var c = document.getElementById('productsList');
+    if (!products||!products.length) { c.innerHTML='<p style=padding:40px;text-align:center;color:#999;>no data</p>'; return; }
+    var m = {1:{t:'onsale',c:'status-approved'},0:{t:'pending',c:'status-pending'},'-1':{t:'offline',c:'status-rejected'}};
+    var h='';
+    for (var i=0;i<products.length;i++) { var p=products[i]; var s=m[p.status]||m[0];
+        h+='<div class=product-card><h4>'+esc(p.title||'')+' <span class=status-badge '+s.c+'>'+s.t+'</span></h4>';
+        h+='<p>SID:'+p.sellerId+' | stock:'+p.stock+' | Y'+p.price+'</p>';
+        h+='<p>'+esc(p.description||'')+'</p>';
+        h+='<div class=action-buttons><button class=btn-top onclick=topProduct('+p.id+')>pin</button>';
+        h+='<button class=btn-delete onclick=deleteProduct('+p.id+')>del</button></div></div>';
+    }
+    c.innerHTML=h;
+}
+
+async function topProduct(id) {
+    try {
+        var res = await fetch(API_BASE+'/admin/product/top',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},body:JSON.stringify({productId:id,priority:1})});
+        var data = await res.json();
+        if (data.success) { alert('pinned'); loadAdminProducts(currentProductsPage); }
+    } catch(err){console.error(err);}
+}
+
+async function deleteProduct(id) {
+    if (!confirm('delete?')) return;
+    try {
+        var res = await fetch(API_BASE+'/admin/product/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+adminToken}});
+        var data = await res.json();
+        if (data.success) { alert('deleted'); loadAdminProducts(currentProductsPage); }
+    } catch(err){console.error(err);}
+}
+
+async function loadUsers(page) {
+    currentUsersPage = page;
+    try {
+        var res = await fetch(API_BASE+'/admin/users?pageNum='+page+'&pageSize=10');
+        var data = await res.json();
+        if (data.success) { renderUsersList(data.data.records); renderPagination('usersPagination', data.data.pages||1, page, function(p){loadUsers(p);}); }
+    } catch(err){console.error(err);}
+}
+
+function renderUsersList(users) {
+    var c = document.getElementById('usersList');
+    if (!users||!users.length) { c.innerHTML='<p style=padding:40px;text-align:center;color:#999;>no data</p>'; return; }
+    var h='';
+    for (var i=0;i<users.length;i++) { var u=users[i];
+        var sc=u.status===1?'status-enabled':'status-disabled'; var st=u.status===1?'active':'disabled';
+        var bc=u.status===1?'btn-reject':'btn-approve'; var bt=u.status===1?'disable':'enable';
+        h+='<div class=product-card><h4>'+esc(u.username||'')+' <span class=status-tag '+sc+'>'+st+'</span></h4>';
+        h+='<p>ID:'+u.id+' | '+(u.createTime||'')+'</p>';
+        h+='<div class=action-buttons><button class=btn-approve onclick="showUserProducts('+u.id+',\''+esc(u.username||'')+'\')">view</button>';
+        h+='<button class='+bc+' onclick="toggleUserStatus('+u.id+','+(u.status===1?0:1)+')">'+bt+'</button></div></div>';
+    }
+    c.innerHTML=h;
+}
+
+async function showUserProducts(uid, uname) {
+    document.getElementById('userProductsTitle').textContent=' - '+uname;
+    document.getElementById('userProductsModal').classList.remove('hidden');
+    try {
+        var res = await fetch(API_BASE+'/admin/user/'+uid+'/products');
+        var data = await res.json();
+        var c = document.getElementById('userProductsList');
+        if (!data.success||!data.data.length) { c.innerHTML='<p style=padding:20px;text-align:center;color:#999;>no data</p>'; }
+        else { var h=''; for(var i=0;i<data.data.length;i++){var p=data.data[i];h+='<div>pID:'+p.id+'|'+esc(p.title||'')+'|stock:'+p.stock+'|'+(p.status===1?'onsale':(p.status===0?'pending':'offline'))+'</div>';} c.innerHTML=h; }
+    } catch(err){console.error(err);}
+}
+
+function closeUserProductsModal() { document.getElementById('userProductsModal').classList.add('hidden'); }
+
+async function toggleUserStatus(uid, st) {
+    if (!confirm((st===1?'enable':'disable')+'?')) return;
+    try {
+        var res = await fetch(API_BASE+'/admin/user/status',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+adminToken},body:JSON.stringify({userId:uid,status:st})});
+        var data = await res.json();
+        if (data.success) { alert('done'); loadUsers(currentUsersPage); }
+    } catch(err){console.error(err);}
+}
+
+function renderPagination(cid, total, cur, cb) {
+    var c = document.getElementById(cid);
+    if (total <= 1) { c.innerHTML=''; return; }
+    var h='';
+    if (cur > 1) h += '<button onclick=cb('+(cur-1)+')>prev</button>';
+    for (var i=1; i<=total; i++) {
+        if (i===1||i===total||(i>=cur-2&&i<=cur+2)) h += '<button onclick=cb('+i+')'+(i===cur?' class=active':'')+'>'+i+'</button>';
+        else if (i===cur-3||i===cur+3) h += '<span>...</span>';
+    }
+    if (cur < total) h += '<button onclick=cb('+(cur+1)+')>next</button>';
+    c.innerHTML = h;
+}
+
+function esc(t) { if(!t)return''; var d=document.createElement('div'); d.textContent=t; return d.innerHTML; }

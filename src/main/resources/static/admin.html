@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 校园二手交易平台</title>
+    <link rel="stylesheet" href="/css/admin.css?v=202404291907">
+</head>
+<body>
+    <!-- 登录页 -->
+    <div id="loginPage" class="login-container">
+        <div class="login-box">
+            <h2>管理员登录</h2>
+            <form id="loginForm">
+                <input type="text" name="username" placeholder="用户名" required>
+                <input type="password" name="password" placeholder="密码" required>
+                <button type="submit">登录</button>
+            </form>
+            <p class="hint">默认账号: admin / admin123</p>
+            <a href="/" class="back-link">返回首页</a>
+        </div>
+    </div>
+
+    <!-- 管理后台 -->
+    <div id="adminPage" class="admin-container hidden">
+        <!-- 侧边栏 -->
+        <div class="sidebar">
+            <div class="logo">📊 管理后台</div>
+            <nav>
+                <a href="#" onclick="showModule('dashboard')" class="active">控制面板</a>
+                <a href="#" onclick="showModule('pending')">待审核商品</a>
+                <a href="#" onclick="showModule('products')">商品管理</a>
+                <a href="#" onclick="showModule('users')">用户管理</a>
+                <a href="#" onclick="showModule('notifications')">发送通知</a>
+                <a href="#" onclick="showModule('notification-list')">通知记录</a>
+                <a href="#" onclick="logout()">退出登录</a>
+            </nav>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 控制面板 -->
+            <div id="moduleDashboard" class="module">
+                <h2>控制面板</h2>
+                <div class="stats-grid">
+                    <div class="stat-card gradient-purple">
+                        <h3>今日成交</h3>
+                        <p class="stat-value" id="statToday">¥0.00</p>
+                    </div>
+                    <div class="stat-card gradient-pink">
+                        <h3>本周成交</h3>
+                        <p class="stat-value" id="statWeek">¥0.00</p>
+                    </div>
+                    <div class="stat-card gradient-blue">
+                        <h3>本月成交</h3>
+                        <p class="stat-value" id="statMonth">¥0.00</p>
+                    </div>
+                    <div class="stat-card gradient-green">
+                        <h3>总成交额</h3>
+                        <p class="stat-value" id="statTotal">¥0.00</p>
+                    </div>
+                    <div class="stat-card gradient-orange">
+                        <h3>待审核</h3>
+                        <p class="stat-value" id="statPending">0</p>
+                    </div>
+                    <div class="stat-card gradient-cyan">
+                        <h3>总用户数</h3>
+                        <p class="stat-value" id="statUsers">0</p>
+                    </div>
+                    <div class="stat-card gradient-yellow">
+                        <h3>总商品数</h3>
+                        <p class="stat-value" id="statProducts">0</p>
+                    </div>
+                    <div class="stat-card gradient-red">
+                        <h3>总订单数</h3>
+                        <p class="stat-value" id="statOrders">0</p>
+                    </div>
+                </div>
+                <!-- 流水细化 -->
+                <h3 style="margin-top: 30px; border-bottom: 1px solid #eee; padding-bottom: 10px;">📈 订单统计</h3>
+                <div class="stats-grid" style="margin-top: 15px;">
+                    <div class="stat-card gradient-purple">
+                        <h3>今日订单</h3>
+                        <p class="stat-value" id="statTodayOrders">0</p>
+                    </div>
+                    <div class="stat-card gradient-pink">
+                        <h3>今日成交额</h3>
+                        <p class="stat-value" id="statTodayAmount">¥0.00</p>
+                    </div>
+                    <div class="stat-card gradient-blue">
+                        <h3>本月订单</h3>
+                        <p class="stat-value" id="statMonthOrders">0</p>
+                    </div>
+                    <div class="stat-card gradient-green">
+                        <h3>本月成交额</h3>
+                        <p class="stat-value" id="statMonthAmount">¥0.00</p>
+                    </div>
+                    <div class="stat-card gradient-orange">
+                        <h3>待处理订单</h3>
+                        <p class="stat-value" id="statPendingOrders">0</p>
+                    </div>
+                </div>
+                <!-- 通知统计 -->
+                <h3 style="margin-top: 30px; border-bottom: 1px solid #eee; padding-bottom: 10px;">🔔 通知统计</h3>
+                <div class="stats-grid" style="margin-top: 15px;">
+                    <div class="stat-card gradient-teal">
+                        <h3>总通知数</h3>
+                        <p class="stat-value" id="statTotalNotifications">0</p>
+                    </div>
+                    <div class="stat-card gradient-pink">
+                        <h3>未读通知</h3>
+                        <p class="stat-value" id="statUnreadNotifications">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 待审核商品 -->
+            <div id="modulePending" class="module hidden">
+                <h2>待审核商品 <span id="pendingCount" class="badge">0</span></h2>
+                <div id="pendingList" class="product-list"></div>
+                <div id="pendingPagination" class="pagination"></div>
+            </div>
+
+            <!-- 商品管理 -->
+            <div id="moduleProducts" class="module hidden">
+                <h2>商品管理</h2>
+                <div class="filter-bar">
+                    <select id="filterStatus">
+                        <option value="">全部状态</option>
+                        <option value="pending">待审核</option>
+                        <option value="1">已上架</option>
+                        <option value="0">已下架</option>
+                    </select>
+                    <button onclick="loadAdminProducts(1)">筛选</button>
+                </div>
+                <div id="productsList" class="product-list"></div>
+                <div id="productsPagination" class="pagination"></div>
+            </div>
+
+            <!-- 用户管理 -->
+            <div id="moduleUsers" class="module hidden">
+                <h2>用户管理</h2>
+                <div id="usersList" class="user-list"></div>
+                <div id="usersPagination" class="pagination"></div>
+            </div>
+
+            <!-- 发送通知 -->
+            <div id="moduleNotifications" class="module hidden">
+                <h2>📤 发送通知</h2>
+                <div class="notification-form">
+                    <form id="notificationForm">
+                        <div class="form-group">
+                            <label>用户ID</label>
+                            <input type="number" name="userId" required placeholder="请输入接收通知的用户ID">
+                        </div>
+                        <div class="form-group">
+                            <label>通知类型</label>
+                            <select name="type" id="notificationType">
+                                <option value="system">系统通知</option>
+                                <option value="order">订单通知</option>
+                                <option value="audit">审核通知</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>通知标题</label>
+                            <input type="text" name="title" required placeholder="请输入通知标题" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label>通知内容</label>
+                            <textarea name="content" rows="5" placeholder="请输入通知内容"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-send">发送通知</button>
+                            <button type="reset" class="btn-reset">重置</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 通知记录 -->
+            <div id="moduleNotificationList" class="module hidden">
+                <h2>📋 通知记录</h2>
+                <div class="filter-bar">
+                    <select id="filterNotifRead">
+                        <option value="">全部</option>
+                        <option value="0">未读</option>
+                        <option value="1">已读</option>
+                    </select>
+                    <button onclick="loadNotificationList(1)">筛选</button>
+                </div>
+                <div id="notificationList" class="notification-list"></div>
+                <div id="notificationPagination" class="pagination"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 审核弹窗 -->
+    <div id="auditModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>审核商品</h3>
+            <div id="auditProductInfo"></div>
+            <textarea id="auditRemark" placeholder="审核备注（可选）"></textarea>
+            <div class="modal-buttons">
+                <button class="btn-pass" onclick="doAudit(1)">通过</button>
+                <button class="btn-reject" onclick="doAudit(-1)">拒绝</button>
+                <button class="btn-cancel" onclick="closeAuditModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户商品弹窗 -->
+    <div id="userProductsModal" class="modal hidden">
+        <div class="modal-content" style="max-width:800px;">
+            <h3>用户商品 <span id="userProductsTitle"></span></h3>
+            <div id="userProductsList" class="product-list"></div>
+            <button class="btn-cancel" onclick="closeUserProductsModal()" style="margin-top:15px;">关闭</button>
+        </div>
+    </div>
+
+    <style>
+        .notification-form {
+            background: #fff;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            max-width: 600px;
+        }
+        .notification-form .form-group {
+            margin-bottom: 20px;
+        }
+        .notification-form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .notification-form input,
+        .notification-form select,
+        .notification-form textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .notification-form input:focus,
+        .notification-form select:focus,
+        .notification-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        .btn-send {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            flex: 1;
+        }
+        .btn-send:hover {
+            opacity: 0.9;
+        }
+        .btn-reset {
+            background: #f5f5f5;
+            color: #666;
+            border: 1px solid #ddd;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .btn-reset:hover {
+            background: #eee;
+        }
+        .notification-list {
+            margin-top: 20px;
+        }
+        .notification-item {
+            background: #fff;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .notification-item.unread {
+            border-left: 4px solid #667eea;
+            background: #f8f9ff;
+        }
+        .notification-content {
+            flex: 1;
+        }
+        .notification-content h4 {
+            margin: 0 0 8px 0;
+            font-size: 15px;
+            color: #333;
+        }
+        .notification-content p {
+            margin: 0;
+            color: #666;
+            font-size: 13px;
+        }
+        .notification-meta {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .notification-type {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+        .type-system { background: #e3f2fd; color: #1976d2; }
+        .type-order { background: #fff3e0; color: #f57c00; }
+        .type-audit { background: #e8f5e9; color: #388e3c; }
+        .stat-card.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+    </style>
+
+    <script src="/js/admin.js?v=2024043001"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+target/
+.idea/
+*.class
+*.log
+*.iml
+.DS_Store
+.vscode/
+*.md
+!README.md
